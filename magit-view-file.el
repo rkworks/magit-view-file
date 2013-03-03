@@ -3,7 +3,7 @@
 ;; Copyright © 2012 Sébastien Gross <seb•ɑƬ•chezwam•ɖɵʈ•org>
 
 ;; Author: Sébastien Gross <seb•ɑƬ•chezwam•ɖɵʈ•org>
-;; Keywords: emacs, 
+;; Keywords: emacs,
 ;; Created: 2012-07-18
 ;; Last changed: 2013-02-07 15:27:17
 ;; Licence: WTFPL, grab your copy here: http://sam.zoy.org/wtfpl/
@@ -11,7 +11,7 @@
 ;; This file is NOT part of GNU Emacs.
 
 ;;; Commentary:
-;; 
+;;
 
 
 ;;; Code:
@@ -31,24 +31,27 @@
   "Keymap for an annotated section.\\{magit-view-file-map}")
 
 
-(defun magit-view-file-parse-log(file)
+(defun magit-view-file-parse-log(file follow)
   "Get log for FILE. Return a list suitable to be displayed in
-file history buffer."
+file history buffer. If FOLLOW is non-nil, list the history of a file beyond renames."
   (with-temp-buffer
     (magit-git-insert
-     (list "log" "--pretty=format:%H%x00%at%x00%an%x00%s" file))
+     (if follow
+         (list "log" "--follow" "--name-only" "--pretty=format:%H%x00%at%x00%an%x00%s" file)
+       (list "log" "--pretty=format:%H%x00%at%x00%an%x00%s" file)))
     (loop for l in (split-string
                     (buffer-substring-no-properties
-                     (point-min) (point-max)) "\n")
-          collect (split-string l (char-to-string 0)))))
+                     (point-min) (point-max)) (if follow "\n\n" "\n"))
+          collect (loop for ll in (split-string l (char-to-string 0))
+                        append (split-string ll "\n")))))
 
 ;;;###autoload
-(defun magit-view-file-history ()
-  "Show history of current file."
-  (interactive)
+(defun magit-view-file-history (follow)
+  "Show history of current file. If FOLLOW is non-nil, list the history of the file beyond renames."
+  (interactive "P")
   (let* ((file-name (buffer-file-name))
          (file (magit-filename file-name))
-         (lines (magit-view-file-parse-log (file-name-nondirectory file)))
+         (lines (magit-view-file-parse-log (file-name-nondirectory file) follow))
          (blank " "))
     (with-current-buffer
         (get-buffer-create (format "HISTORY:%s" file-name))
@@ -61,6 +64,7 @@ file history buffer."
                                             (string-to-number (nth 1 l))))
             for author = (nth 2 l)
             for subject = (nth 3 l)
+            for then-file = (if follow (nth 4 l) file)
             do (let ((log (concat
                            (propertize (substring sha1 0 magit-sha1-abbrev-length)
                                        'face 'magit-log-sha1)
@@ -77,7 +81,7 @@ file history buffer."
                  (insert log "\n")
                  (setq ov (make-overlay pos (point)))
                  (overlay-put ov :sha1 sha1)
-                 (overlay-put ov :file file)
+                 (overlay-put ov :file then-file)
                  (overlay-put ov :file-name file-name)
                  ))
       (delete-char -1 nil)
@@ -86,7 +90,7 @@ file history buffer."
       (goto-char (point-min))
       (switch-to-buffer-other-window (current-buffer)))))
 
-                          
+
 
 (defun magit-view-file-get-properties ()
   "Get overlay properties for file at point in file history
@@ -119,7 +123,7 @@ buffer."
            (new-buffer-name (format "%s:%s"
                                      (substring (plist-get values :sha1) 0 magit-sha1-abbrev-length)
                                     (plist-get values :file))))
-      
+
       (with-current-buffer (generate-new-buffer new-buffer-name)
         (setq buffer-read-only nil)
         (magit-git-insert (list "show" new-buffer-name))
@@ -140,10 +144,10 @@ buffer."
     (set-buffer-modified-p nil)
     (kill-buffer)))
 
-                                  
-    
-         
-    
-    
+
+
+
+
+
 
 ;; magit-view-file.el ends here
